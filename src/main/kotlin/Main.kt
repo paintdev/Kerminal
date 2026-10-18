@@ -1,3 +1,5 @@
+// Imagine a JVM language, with no unnecessary verbosity!
+
 package org.paintdev
 
 import com.jediterm.core.util.TermSize
@@ -35,7 +37,7 @@ fun main() {
 }
 
 private fun createTerminalWindow() {
-    val connector = createShellConnector()
+    val baseConnector = createShellConnector()
     val settings = object : DefaultSettingsProvider() {
         @Suppress("DEPRECATION")
         override fun getDefaultStyle(): TextStyle =
@@ -45,12 +47,43 @@ private fun createTerminalWindow() {
         override fun getDefaultBackground(): TerminalColor = TerminalColor.rgb(17, 17, 17)
         override fun getTerminalFontSize(): Float = 14f
     }
+
+    class InterceptingConnector(
+        private val delegate: TtyConnector,
+        private val onExit: () -> Unit
+    ) : TtyConnector by delegate {
+        private val buffer = StringBuilder()
+
+        override fun write(data: String) {
+            for (char in data) {
+                if (char == '\n' || char == '\r') {
+                    val currentInput = buffer.toString().trim()
+                    if (currentInput == "exit") {
+                        onExit()
+                        buffer.setLength(0)
+                    } else {
+                        delegate.write(char.toString())
+                        buffer.setLength(0)
+                    }
+                } else {
+                    buffer.append(char)
+                    delegate.write(char.toString())
+                }
+            }
+        }
+    }
+
+    val interceptingConnector = InterceptingConnector(baseConnector) {
+        Runtime.getRuntime().halt(0)
+    }
+
     val terminal = JediTermWidget(80, 24, settings).apply {
         terminalPanel.setDefaultCursorShape(CursorShape.BLINK_VERTICAL_BAR)
         terminalPanel.setCursorShape(CursorShape.BLINK_VERTICAL_BAR)
-        setTtyConnector(connector)
+        setTtyConnector(interceptingConnector)
         start()
     }
+
     JFrame("Kerminal").apply {
         defaultCloseOperation = JFrame.EXIT_ON_CLOSE
         minimumSize = Dimension(640, 400)
@@ -82,9 +115,16 @@ private fun createShellConnector(): TtyConnector {
             ?.takeIf { it.startsWith("/") && it.substringAfterLast('/').isNotBlank() }
             ?: "/bin/bash"
         if (loginShell.substringAfterLast('/') == "bash") {
+            val fakeCommands = "kerminal-whatsnew() { echo -e \"What's new in v1.3-2-test:\\n- More polished source code\\n- New version formatting\\n  Instead of v1.3.0, now it'll be v1.3!\\n- Added alert when running exit\\n\\nv1.3 is not complete yet, and this is an extremely experimental version. Please use Rewrite 1.2.1 if you want a somewhat stable Kerminal experience.\"; }; " +
+                               "app-info() { echo \"Kerminal v1.3-2-test (Unstable Build)\"; }; " +
+                               "kizzy() { echo \"kizzy-june\"; }; " +
+                               "exit-app() { echo \"Exit is currently broken in Kerminal and you have to close it manually instead. Sorry for any inconvenience this may have caused.\"; }; " +
+                               "alias exit='echo \"Exit is currently broken in Kerminal and you have to close it manually instead. Sorry for any inconvenience this may have caused.\"'; "
+
             environment["PROMPT_COMMAND"] =
-                "printf '\\nKerminal - A terminal made in Kotlin\\nVersion Rewrite 1.2.1\\n'; " +
-                    "PS1='\\[\\e[32m\\][\\u@\\h \\W]\\$\\[\\e[0m\\] '; unset PROMPT_COMMAND"
+                "printf 'Kerminal - A terminal made in Kotlin\\nVersion 1.3-2-test !This is a test build, and is therefore unstable!\\nRun kerminal-whatsnew to see what is new!\\n'; " +
+                        "$fakeCommands " +
+                        "PS1='\\[\\e[32m\\][\\u@\\h \\W]\\$\\[\\e[0m\\] '; unset PROMPT_COMMAND"
         }
         listOf(loginShell, "--login")
     }
@@ -94,6 +134,7 @@ private fun createShellConnector(): TtyConnector {
         .setEnvironment(environment)
         .setDirectory(System.getProperty("user.home"))
         .start()
+
     return ResizablePtyConnector(process, shell)
 }
 
