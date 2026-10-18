@@ -37,7 +37,7 @@ fun main() {
 private fun createTerminalWindow() {
     val connector = createShellConnector()
     val settings = object : DefaultSettingsProvider() {
-        @Suppress("DEPRECATION")
+        @Deprecated("Deprecated in Java")
         override fun getDefaultStyle(): TextStyle =
             TextStyle(TerminalColor.rgb(218, 218, 218), TerminalColor.rgb(17, 17, 17))
 
