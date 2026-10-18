@@ -1,3 +1,4 @@
+# Kerminal
 A terminal made in Kotlin.
 ## Installation
 Just get the latest stable (or test if you're feeling unstable) build in Releases and simply run it! (java -jar Kerminal-version-all.jar, or just double click it)
